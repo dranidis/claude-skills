@@ -8,7 +8,25 @@ description: Write, check and test against JSXM stream X-machine specifications 
 JSXM turns a stream X-machine written in XML (states, transitions, memory, and Java preconditions and
 effects) into tests.
 
-Everything below was checked in a working session unless marked **unverified**.
+Everything below was checked in a working session unless marked **unverified** or **(paper)**. **(paper)** means
+it comes from Dranidis, Bratanis, Ipate, "JSXM: A Tool for Automated Test Generation", SEFM 2012, and was not
+checked against plugin 1.4.11.
+
+## What the tests guarantee (paper)
+
+The tests check control: which function fires in which state, and where the code goes next. They assume each
+processing function is itself written correctly. In practice the tests also caught bugs inside functions (k=0
+killed all 19 mutants of the paper's Account class), but that is not guaranteed.
+
+The tests find every difference between the code and the model only when all of these hold:
+
+- **Output-distinguishability:** two functions that can fire on the same memory and input give different outputs.
+- The state cover reaches every state with sequences that can actually run (not just paths in the diagram).
+- The characterization set separates every pair of states.
+- Every sequence the automaton accepts in `Sr Φ[k+1]` can actually run.
+- The code has at most n + k states (see "Choosing k").
+
+When one fails, the tests still run and still find faults; they just lose the guarantee.
 
 ## Setup
 
@@ -75,7 +93,7 @@ copy-external-package, copy-package, create-prototype, create-sample, generate, 
 ## Choosing k
 
 k is the estimated number of extra states the code has beyond the model: k = n' − n, where n is the model's
-states and n' the code's (Dranidis, Bratanis, Ipate, "JSXM: A Tool for Automated Test Generation", SEFM 2012).
+states and n' the code's (paper).
 The tests are `((Sr Φ[k+1]) ∩ L) Ws`: reach each state by the state cover, run every accepted sequence of up to
 k+1 functions, then probe with the separating set. Sequences that are a prefix of another are dropped. The
 guarantee that every fault is found holds only if the code really has at most n + k states.
@@ -108,6 +126,12 @@ milliseconds and leaves the old file, with its old `k`. Delete the tests folder 
   generators' inputs. JSXM drops it. Many of these are normal when functions depend on memory.
 - **ERROR "Unhandled input: ..."**: an expected rejection. The test step expects `<input>_Error` (or the fault
   name). In one run these ERROR lines matched the `_Error` steps one for one. They are not faults in the model.
+- **Where `_Error` comes from (paper):** the model is made complete by an implicit `<input>_Error` self-loop in
+  every state that refuses that input. So a refused input is a normal, expected step, not a failure.
+- The paper's generation steps: check the state cover reaches every state; build `Sr Φ[k+1]`; keep what the
+  automaton accepts; check those can run; append the characterization set; drop sequences that are a prefix of
+  another; turn functions into inputs with the generators; run the animator to get expected outputs. Sequences
+  that cannot run at their characterization-set end are expected and dropped (part of the "Not admitted" WARNs).
 - The test XML: `<set k=".."><sequences><sequence name="F1_F2_..."><call><function name/><input name><arg
 type>value</arg></input><output name><result type>value</result></output></call>...`. In that run, an
   `_Error` step came only last in its sequence.
@@ -128,9 +152,19 @@ helped: it adds paths through extra states in the code, not memory values the te
     (`writingRefused`, `doneRefused`), so the state cover reaches it.
 - **Split a function whose output depends on memory into one function per answer** (`FindsRefusal` and
   `FindsAcceptance`, not one `Finds`). The tests then cover each answer by name.
+- **Keep outputs distinguishable (paper).** Two functions that can fire on the same memory and input must give
+  different outputs. The tests only see outputs, so this is how they know which function fired (the animators
+  do not show it either).
 - **The generators decide what is tested.** Each function has one generator, so it gives one kind of input. A
   case only another input reaches is never tested. Give that case its own function and generator, as with a
   repeat the gateway refuses.
+- **Generators and input-uniformity (paper).** A generator takes the current memory and gives an input, or none
+  if the function cannot fire from that memory. Inputs are chosen one step at a time, so generation assumes the
+  model is *input-uniform*: any earlier choice of inputs still leaves an input for the next function. Many
+  models are not. In the paper's Account, after `deposit(1)` no `withdraw` can fire `Withdraw` (it needs
+  amount < balance). Fix: pick generator values that keep the model uniform for the longest sequences your k
+  produces, for example deposit 100 so k+1 withdrawals of 1 still fit. Otherwise sequences that could run are
+  dropped as "Not admitted".
 - **The characterization set may hold extra sequences** that tell no states apart. Use them to probe outputs that
   depend on memory, such as what the caller is told when a write fails.
 - **Model the environment's choices as inputs.** For code under test that waits on a database or a remote
@@ -139,6 +173,10 @@ helped: it adds paths through extra states in the code, not memory values the te
   every state where they can happen.
 - **Every pair of functions on one input from one state must have disjoint preconditions**, or the model is not
   deterministic.
+- **Interacting models (paper, unverified in 1.4.11).** An input argument of type `sxm` carries an instance of
+  another model. A function's precondition or effect can send it an input and use its output, like a method
+  call (a Borrower model calls `isAvailable()` on a Book model). Each model gets its own tests against its own
+  class, so a system can be tested one class at a time, with no single flat model of the whole system.
 
 ## Checking a model before generating
 
@@ -160,6 +198,15 @@ then failed on it. The `MISSING` check now finds that mistake.
 Also check the sets by hand, or with the same replay: each state's cover sequence must reach that state, and
 each pair of states must accept different characterization sequences.
 
+What the sets mean (paper):
+
+- **State cover:** one sequence per state that can actually run with real inputs, not just a path in the diagram.
+- **Characterization set:** in the paper's method it is a *separating set*. It tells two states apart with
+  sequences whose inputs overlap, where one state accepts the sequence and the other refuses it. That is why
+  `_Error` functions belong in it: `Open` and `Open_error` both take `open()`, and only `initial` accepts
+  `Open`, so they separate `initial` from every other state. The paper's Account set is `Open, Open_error,
+  Close, Close_error, WithdrawAll, Withdraw_error`.
+
 ## Running the generated tests against a system
 
 - **JUnit path:** write `<Model>Adapter.java` with one method per input, taking the input's arguments and
@@ -177,6 +224,9 @@ each pair of states must accept different characterization sequences.
 - **Rejecting inputs:** the adapter must give `<input>_Error` when the model would not accept the input. Examples:
   a stage input when the request is not held at that gate, or a callback for a payment the fake service never
   finished. Otherwise every negative step fails.
+- **Every path must show a result (paper: observability).** Each path through a method must end in something
+  the adapter can see: a return value or an exception. A void method that succeeds returns its output name
+  (`openOut`); an exception is caught and turned into the error output.
 - After each test, release any request still held, so it cannot run into the next test.
 
 ## Proving the tests can fail
