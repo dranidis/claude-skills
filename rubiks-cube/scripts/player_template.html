@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script type="importmap">
+{
+  "imports": {
+    "cubing/alg": "https://cdn.jsdelivr.net/npm/cubing@0.63.7/dist/lib/cubing/alg/index.js",
+    "cubing/puzzles": "https://cdn.jsdelivr.net/npm/cubing@0.63.7/dist/lib/cubing/puzzles/index.js",
+    "cubing/twisty": "https://cdn.jsdelivr.net/npm/cubing@0.63.7/dist/lib/cubing/twisty/index.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.170.0/",
+    "random-uint-below": "https://cdn.jsdelivr.net/npm/random-uint-below@3.3.0/dist/esm/index.js"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #eef0f3;
+    --surface: #ffffff;
+    --ink: #1b1f26;
+    --muted: #5b6472;
+    --line: #d5dae1;
+    --accent: #d9531e;
+    --accent-ink: #ffffff;
+    --chip: #f3f5f8;
+    --warn-bg: #fff3e6;
+    --warn-ink: #8a4a10;
+    --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #14171c;
+      --surface: #1c2027;
+      --ink: #e7eaef;
+      --muted: #9aa3b0;
+      --line: #2f3540;
+      --accent: #f07a3f;
+      --accent-ink: #1b0f08;
+      --chip: #242933;
+      --warn-bg: #33241a;
+      --warn-ink: #f4c095;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #14171c;
+    --surface: #1c2027;
+    --ink: #e7eaef;
+    --muted: #9aa3b0;
+    --line: #2f3540;
+    --accent: #f07a3f;
+    --accent-ink: #1b0f08;
+    --chip: #242933;
+    --warn-bg: #33241a;
+    --warn-ink: #f4c095;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 28px 48px;
+    display: grid;
+    gap: 28px;
+  }
+  header { display: grid; gap: 6px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(32px, 5vw, 46px);
+    line-height: 1.02;
+    margin: 0;
+    text-wrap: balance;
+  }
+  header p { margin: 0; max-width: 64ch; color: var(--muted); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+    display: grid;
+    gap: 12px;
+    align-content: start;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 26px;
+    line-height: 1.1;
+    margin: 0;
+  }
+  .tag {
+    justify-self: start;
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--chip);
+    color: var(--muted);
+  }
+  .tag.pure { background: var(--accent); color: var(--accent-ink); }
+  twisty-player {
+    width: 100%;
+    max-width: 100%;
+    height: 320px;
+  }
+  twisty-alg-viewer {
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.8;
+    padding: 10px 12px;
+    background: var(--chip);
+    border-radius: 6px;
+    overflow-wrap: anywhere;
+  }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  .note {
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .try { display: grid; gap: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  input[type="text"], select {
+    font: inherit;
+    font-family: var(--mono);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  input[type="text"] { width: 100%; }
+  .grow { flex: 1 1 280px; min-width: 0; }
+  .grow input { box-sizing: border-box; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    border: 0;
+    border-radius: 6px;
+    padding: 9px 16px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+  }
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .key {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 8px 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .key code { font-family: var(--mono); color: var(--ink); font-weight: 500; }
+  .load-error { color: var(--warn-ink); background: var(--warn-bg); padding: 10px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">{{EYEBROW}}</span>
+    <h1>{{TITLE}}</h1>
+    <p>{{INTRO}}</p>
+  </header>
+
+  <div id="load-error" class="load-error" hidden>The 3D cube could not load (cubing.js comes from cdn.jsdelivr.net, so this page needs internet). The moves below are still correct.</div>
+
+  <div class="grid">
+{{PLAYERS}}
+  </div>
+
+  <section class="card try">
+    <h2>Try any moves</h2>
+    <form id="try-form" class="row">
+      <label class="grow" for="try-alg">Moves
+        <input type="text" id="try-alg" value="{{TRY_ALG}}" spellcheck="false" autocomplete="off">
+      </label>
+      <label for="try-puzzle">Cube
+        <select id="try-puzzle">
+          <option value="5x5x5"{{SEL5}}>5x5</option>
+          <option value="4x4x4"{{SEL4}}>4x4</option>
+          <option value="3x3x3"{{SEL3}}>3x3</option>
+        </select>
+      </label>
+      <label for="try-mode">Start from
+        <select id="try-mode">
+          <option value="end" selected>the case it solves</option>
+          <option value="start">a solved cube</option>
+        </select>
+      </label>
+      <button type="submit">Show</button>
+    </form>
+    <twisty-player id="try"
+      puzzle="{{TRY_PUZZLE}}"
+      alg="{{TRY_ALG}}"
+      experimental-setup-anchor="end"
+      background="none"
+      control-panel="bottom-row"></twisty-player>
+    <twisty-alg-viewer for="try"></twisty-alg-viewer>
+    <p>Type moves and press Show. Write 4x4/5x5 inner slices as <code>2R</code>, not <code>r</code>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Notation</h2>
+    <div class="key">
+      <span><code>R U F L D B</code> outer face, clockwise</span>
+      <span><code>R'</code> counter-clockwise, <code>R2</code> half turn</span>
+      <span><code>2R</code> only the inner slice next to R</span>
+      <span><code>Rw</code> outer two layers together</span>
+      <span><code>x</code> whole cube, turned like R</span>
+      <span>Avoid lowercase <code>r</code> on 4x4: sources disagree on its meaning</span>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+  const failed = () => { document.getElementById("load-error").hidden = false; };
+  try {
+    await import("cubing/twisty");
+  } catch (e) {
+    failed();
+  }
+  const form = document.getElementById("try-form");
+  const player = document.getElementById("try");
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    player.puzzle = document.getElementById("try-puzzle").value;
+    player.experimentalSetupAnchor = document.getElementById("try-mode").value;
+    player.alg = document.getElementById("try-alg").value.trim();
+    player.timestamp = "start";
+  });
+</script>
+</body>
+</html>
