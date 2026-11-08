@@ -6,8 +6,7 @@ description: Write, check and test against JSXM stream X-machine specifications 
 # JSXM
 
 JSXM turns a stream X-machine written in XML (states, transitions, memory, and Java preconditions and
-effects) into tests. The user wrote JSXM; ask them when something here is unclear or seems wrong, and fix this
-file when they correct it.
+effects) into tests.
 
 Everything below was checked in a working session unless marked **unverified**.
 
@@ -75,8 +74,23 @@ copy-external-package, copy-package, create-prototype, create-sample, generate, 
 
 ## Choosing k
 
-k is how many states the tests allow the code to have beyond the model's. The web pages do not document it. The
-plugin descriptor (`META-INF/maven/plugin.xml` in the plugin jar) does:
+k is the estimated number of extra states the code has beyond the model: k = n' − n, where n is the model's
+states and n' the code's (Dranidis, Bratanis, Ipate, "JSXM: A Tool for Automated Test Generation", SEFM 2012).
+The tests are `((Sr Φ[k+1]) ∩ L) Ws`: reach each state by the state cover, run every accepted sequence of up to
+k+1 functions, then probe with the separating set. Sequences that are a prefix of another are dropped. The
+guarantee that every fault is found holds only if the code really has at most n + k states.
+
+The paper's advice: k is usually below 5. Larger k rarely finds new errors unless the code is very wrong. Test
+count and length grow exponentially with k (the paper's account example: 143 / 841 / 5293 / 35151 tests for
+k = 0..3). In the paper's web-service case studies, k ≤ 2 was enough to find real errors. Large k also makes
+input generators more likely to fail on models that are not input-uniform, because the function sequences get
+longer.
+
+**Raising k does not fix memory problems.** k only lets the tests reach states that the code may have but the
+model does not describe. Behaviour that depends on memory values the tests never reach stays untested at any k.
+Fix that in the model instead (see "Writing a model that tests well").
+
+The web pages do not say how to set k. The plugin descriptor (`META-INF/maven/plugin.xml` in the plugin jar) does:
 
 - `<kInput>` in the plugin's `<configuration>` sets k for every model. The default is 2. It has no `-D` property.
 - `<kList>` sets it per model: `<kList><property><name>Model</name><value>0</value></property></kList>`. The name
@@ -95,14 +109,15 @@ milliseconds and leaves the old file, with its old `k`. Delete the tests folder 
 - **ERROR "Unhandled input: ..."**: an expected rejection. The test step expects `<input>_Error` (or the fault
   name). In one run these ERROR lines matched the `_Error` steps one for one. They are not faults in the model.
 - The test XML: `<set k=".."><sequences><sequence name="F1_F2_..."><call><function name/><input name><arg
-  type>value</arg></input><output name><result type>value</result></output></call>...`. In that run, an
+type>value</arg></input><output name><result type>value</result></output></call>...`. In that run, an
   `_Error` step came only last in its sequence.
 
 ## Writing a model that tests well
 
 The k=0 tests are: reach each state by its state-cover sequence, take one function, then probe with the
 characterization set. They reach states, not memory. In one run they caught only 1 of 5 deliberate code breaks,
-because the breaks sat behind memory. After the changes below they caught all 5.
+because the breaks sat behind memory. After the changes below they caught all 5. Raising k would not have
+helped: it adds paths through extra states in the code, not memory values the tests never reach.
 
 - **Memory that decides the next function hides behaviour from the tests.** Make it states, or separate models.
   - A configuration flag that changes behaviour throughout (for example, "the gateway dedups") is better as
