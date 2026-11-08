@@ -3,3 +3,4 @@ playwright-cli/
 synced/
 __pycache__/
 .playwright-cli/
+test-strategy-review
