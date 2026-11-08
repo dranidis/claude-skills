@@ -1,0 +1,5 @@
+otto/
+playwright-cli/
+synced/
+__pycache__/
+.playwright-cli/
